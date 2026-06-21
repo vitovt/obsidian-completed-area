@@ -1,24 +1,23 @@
 {
   "name": "obsidian-completed-area",
-  "version": "0.0.1",
-  "description": "This is a obsidian plugin for moving completed to-do items to a seperate completed area.",
-  "main": "src/index.ts",
-  "repository": "git@github.com:DahaWong/obsidian-completed.git",
+  "version": "0.2.0",
+  "description": "Move completed to-do items to a separate completed area in Obsidian.",
+  "main": "main.js",
+  "type": "module",
+  "repository": "https://github.com/DahaWong/obsidian-completed-area.git",
   "author": "Daha",
   "license": "MIT",
   "scripts": {
-    "dev": "rollup --config rollup.config.js -w",
-    "build": "rollup --config rollup.config.js"
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production"
   },
   "devDependencies": {
-    "ts-loader": "^8.0.11",
-    "typescript": "^4.1.2",
-    "webpack-cli": "^4.2.0",
-    "tslib": "^2.0.3",
-    "obsidian": "https://github.com/obsidianmd/obsidian-api/tarball/master",
-    "rollup": "^2.32.1",
-    "@rollup/plugin-commonjs": "^15.1.0",
-    "@rollup/plugin-node-resolve": "^9.0.0",
-    "@rollup/plugin-typescript": "^6.0.0"
+    "@types/node": "^22.15.17",
+    "esbuild": "0.25.5",
+    "obsidian": "latest",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
