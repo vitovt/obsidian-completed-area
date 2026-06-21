@@ -1,16 +1,10 @@
-import {
-	App,
-	PluginSettingTab,
-	Setting,
-	Notice,
-	DropdownComponent,
-} from "obsidian";
-import CompletedAreaPlugin from "./main";
+import { App, Notice, PluginSettingTab, Setting } from "obsidian";
+
+import type CompletedAreaPlugin from "./main";
 
 export default class CompletedAreaSettingTab extends PluginSettingTab {
 	private readonly plugin: CompletedAreaPlugin;
-	public defaultHeaderLevel = "2";
-	public defaultHeaderName = "Completed";
+	private readonly defaultHeaderName = "Completed";
 
 	constructor(app: App, plugin: CompletedAreaPlugin) {
 		super(app, plugin);
@@ -18,64 +12,52 @@ export default class CompletedAreaSettingTab extends PluginSettingTab {
 	}
 
 	display(): void {
-		let { containerEl } = this;
+		const { containerEl } = this;
 		containerEl.empty();
 
 		new Setting(containerEl)
 			.setName("Header level")
-			.setDesc("number of `#`s in the header.")
-			.addText((text) =>
-				text
-					.setPlaceholder(this.defaultHeaderLevel)
+			.setDesc("Choose the heading level for the completed area.")
+			.addDropdown((dropdown) => {
+				for (let level = 1; level <= 6; level += 1) {
+					const value = String(level);
+					dropdown.addOption(value, `Heading ${value}`);
+				}
+
+				dropdown
 					.setValue(this.plugin.setting.completedAreaHierarchy)
-					.onChange((value) => {
-						if (this.isHierarchyValid(value)) {
-							this.plugin.setting.completedAreaHierarchy =
-								value || this.defaultHeaderLevel;
-							this.plugin.saveData(this.plugin.setting).then(() => {
-								text.setValue(value);
-							});
-						} else {
-							new Notice("Header level's number not valid!");
-						}
-					})
-			);
+					.onChange(async (value) => {
+						this.plugin.setting.completedAreaHierarchy = value;
+						await this.plugin.saveSettings();
+					});
+			});
 
 		new Setting(containerEl)
 			.setName("Header name")
-			.setDesc("where the completed items be extracted to.")
+			.setDesc("Set the heading text for the completed area.")
 			.addText((text) =>
 				text
 					.setPlaceholder(this.defaultHeaderName)
 					.setValue(this.plugin.setting.completedAreaName)
-					.onChange((value) => {
+					.onChange(async (value) => {
 						this.plugin.setting.completedAreaName =
-							value || this.defaultHeaderName;
-						this.plugin.saveData(this.plugin.setting);
-						text.setValue(value);
+							value.trim() || this.defaultHeaderName;
+						await this.plugin.saveSettings();
 					})
 			);
 
 		new Setting(containerEl)
 			.setName("Show icon on left sidebar")
 			.addToggle((toggle) => {
-				toggle.setValue(this.plugin.setting.showIcon).onChange((value) => {
-					this.plugin.setting.showIcon = value;
-					this.plugin.saveData(this.plugin.setting);
-					new Notice(
-						`Reload the app to see icon ${value ? "added" : "removed"}.`
-					);
-				});
+				toggle
+					.setValue(this.plugin.setting.showIcon)
+					.onChange(async (value) => {
+						this.plugin.setting.showIcon = value;
+						await this.plugin.saveSettings();
+						new Notice(
+							`Reload the app to see icon ${value ? "added" : "removed"}.`
+						);
+					});
 			});
-	}
-
-	isHierarchyValid(hierarchyLevel: string): boolean {
-		const validLevels = [1, 2, 3, 4, 5, 6];
-		for (let validNum of validLevels) {
-			if (Number(hierarchyLevel) === validNum || hierarchyLevel === "") {
-				return true;
-			}
-		}
-		return false;
 	}
 }

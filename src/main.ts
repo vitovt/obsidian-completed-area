@@ -1,6 +1,19 @@
 import CompletedAreaSettingTab from "./CompletedAreaSettingTab";
 import CompletedAreaSetting from "./CompletedAreaSetting";
-import { Plugin, Notice, addIcon, MarkdownView, Editor, EditorPosition } from "obsidian";
+import {
+	addIcon,
+	Editor,
+	EditorPosition,
+	MarkdownView,
+	Notice,
+	Plugin,
+} from "obsidian";
+
+interface SelectedText {
+	content: string;
+	end: EditorPosition;
+	start: EditorPosition;
+}
 
 addIcon(
 	"completed-area",
@@ -8,13 +21,12 @@ addIcon(
 );
 
 export default class CompletedAreaPlugin extends Plugin {
-	public setting: CompletedAreaSetting;
-	public completedItemRegx: RegExp = /(\n?- \[x\] .*)/g;
-	public completedAreaHeader: string;
+	setting = new CompletedAreaSetting();
+	private readonly completedItemRegex = /(\n?- \[x\] .*)/g;
+	private completedAreaHeader = "";
 
-	async onload() {
-		this.setting = new CompletedAreaSetting();
-		await this.loadSetting();
+	async onload(): Promise<void> {
+		await this.loadSettings();
 
 		if (this.setting.showIcon) {
 			this.addRibbonIcon("completed-area", "Completed Area", () => {
@@ -24,7 +36,7 @@ export default class CompletedAreaPlugin extends Plugin {
 
 		this.addCommand({
 			id: "completed-area-shortcut",
-			name: "Extracted completed items.",
+			name: "Extract completed items",
 			hotkeys: [{ modifiers: ["Ctrl"], key: "Enter" }],
 			callback: () => {
 				this.editSource();
@@ -34,20 +46,18 @@ export default class CompletedAreaPlugin extends Plugin {
 		this.addSettingTab(new CompletedAreaSettingTab(this.app, this));
 	}
 
-	async loadSetting() {
-		const loadedSetting = await this.loadData();
-		if (loadedSetting) {
-			this.setting.completedAreaHierarchy =
-				loadedSetting.completedAreaHierarchy;
-			this.setting.completedAreaName = loadedSetting.completedAreaName;
-			this.setting.todoAreaName = loadedSetting.todoAreaName;
-			this.setting.showIcon = loadedSetting.showIcon;
-		} else {
-			this.saveData(this.setting);
-		}
+	private async loadSettings(): Promise<void> {
+		const loadedSettings = (await this.loadData()) as
+			| Partial<CompletedAreaSetting>
+			| null;
+		Object.assign(this.setting, loadedSettings ?? {});
 	}
 
-	editSource() {
+	async saveSettings(): Promise<void> {
+		await this.saveData(this.setting);
+	}
+
+	private editSource(): void {
 		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (!view) {
 			new Notice("Please open a markdown file first.");
@@ -55,8 +65,8 @@ export default class CompletedAreaPlugin extends Plugin {
 		}
 
 		const editor = view.editor;
-		const todoRegx = /-\s\[[\sx]\]\s/gi;
-		const toggledText = this.toggleElement(editor, todoRegx, this.replaceTodo);
+		const todoRegex = /-\s\[[\sx]\]\s/gi;
+		const toggledText = this.toggleElement(editor, todoRegex, this.replaceTodo);
 		const completedItems = this.extractCompletedItems(toggledText);
 		if (completedItems) {
 			const newText = this.refactorContent(toggledText, completedItems);
@@ -64,16 +74,18 @@ export default class CompletedAreaPlugin extends Plugin {
 		}
 	}
 
-	replaceTodo(startWith: string): string {
-		return startWith === "- [ ] " ? "- [x] " : "- [ ] ";
+	private replaceTodo(this: void, startWith: string): string {
+		return startWith.replace(/\[([\sx])\]/i, (_match, marker: string) =>
+			marker.toLowerCase() === "x" ? "[ ]" : "[x]"
+		);
 	}
 
-	extractCompletedItems(text: string): Array<string> | null {
+	private extractCompletedItems(text: string): Array<string> | null {
 		if (!text) {
 			return null;
 		}
 
-		const completedItems = text.match(this.completedItemRegx);
+		const completedItems = text.match(this.completedItemRegex);
 
 		if (!completedItems) {
 			new Notice("No completed todos found.");
@@ -83,12 +95,11 @@ export default class CompletedAreaPlugin extends Plugin {
 		return completedItems;
 	}
 
-	refactorContent(content: string, items: Array<string>): string {
+	private refactorContent(content: string, items: Array<string>): string {
 		const completedArea = this.formatItems(items, content);
-		console.log(completedArea);
 		const header = this.completedAreaHeader.trimStart();
-		let newContent = content
-			.replace(this.completedItemRegx, "") // Remove completed items in main text
+		const newContent = content
+			.replace(this.completedItemRegex, "") // Remove completed items in main text
 			.trimStart()
 			.trimEnd();
 		return this.isCompletedAreaExisted(content)
@@ -96,16 +107,17 @@ export default class CompletedAreaPlugin extends Plugin {
 			: newContent + completedArea;
 	}
 
-	formatItems(items: Array<string>, content: string): string {
+	private formatItems(items: Array<string>, content: string): string {
 		const header = this.makeCompletedHeader(content);
-		items[0] = (items[0][0] === "\n" ? "" : "\n") + items[0];
+		const [firstItem, ...remainingItems] = items;
+		const normalizedFirstItem = firstItem.startsWith("\n")
+			? firstItem
+			: `\n${firstItem}`;
 
-		return items.reduce((prev, current) => {
-			return prev + current;
-		}, header);
+		return `${header}${[normalizedFirstItem, ...remainingItems].join("")}`;
 	}
 
-	makeCompletedHeader(content: string): string {
+	private makeCompletedHeader(content: string): string {
 		this.completedAreaHeader =
 			"\n" +
 			"#".repeat(Number(this.setting.completedAreaHierarchy)) +
@@ -116,11 +128,15 @@ export default class CompletedAreaPlugin extends Plugin {
 			: this.completedAreaHeader;
 	}
 
-	isCompletedAreaExisted(content: string): boolean {
+	private isCompletedAreaExisted(content: string): boolean {
 		return !!content.match(RegExp(this.completedAreaHeader));
 	}
 
-	toggleElement(editor: Editor, re: RegExp, subst: (match: string) => string): string {
+	private toggleElement(
+		editor: Editor,
+		re: RegExp,
+		subst: (match: string) => string
+	): string {
 		const selection = editor.somethingSelected();
 		const selectedText = this.getSelectedText(editor);
 
@@ -138,7 +154,7 @@ export default class CompletedAreaPlugin extends Plugin {
 		return editor.getValue();
 	}
 
-	getSelectedText(editor: Editor): { start: EditorPosition; end: EditorPosition; content: string } {
+	private getSelectedText(editor: Editor): SelectedText {
 		if (editor.somethingSelected()) {
 			// Toggle to-dos under the selection
 			const cursorStart = editor.getCursor("from");
