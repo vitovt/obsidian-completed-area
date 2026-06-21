@@ -97,14 +97,19 @@ export default class CompletedAreaPlugin extends Plugin {
 
 	private refactorContent(content: string, items: Array<string>): string {
 		const completedArea = this.formatItems(items, content);
-		const header = this.completedAreaHeader.trimStart();
 		const newContent = content
 			.replace(this.completedItemRegex, "") // Remove completed items in main text
 			.trimStart()
 			.trimEnd();
-		return this.isCompletedAreaExisted(content)
-			? newContent.replace(header, `${header}${completedArea}`)
-			: newContent + completedArea;
+
+		if (this.isCompletedAreaExisted(content)) {
+			const lines = newContent.split("\n");
+			const headerIndex = this.findCompletedAreaHeaderIndex(newContent);
+			lines[headerIndex] += completedArea;
+			return lines.join("\n");
+		}
+
+		return newContent + completedArea;
 	}
 
 	private formatItems(items: Array<string>, content: string): string {
@@ -119,17 +124,24 @@ export default class CompletedAreaPlugin extends Plugin {
 
 	private makeCompletedHeader(content: string): string {
 		this.completedAreaHeader =
-			"\n" +
 			"#".repeat(Number(this.setting.completedAreaHierarchy)) +
 			` ${this.setting.completedAreaName}`;
 
-		return this.isCompletedAreaExisted(content)
-			? "" // if completed header already exists
-			: this.completedAreaHeader;
+		if (this.isCompletedAreaExisted(content)) {
+			return "";
+		}
+
+		return `\n${this.completedAreaHeader}`;
 	}
 
 	private isCompletedAreaExisted(content: string): boolean {
-		return !!content.match(RegExp(this.completedAreaHeader));
+		return this.findCompletedAreaHeaderIndex(content) !== -1;
+	}
+
+	private findCompletedAreaHeaderIndex(content: string): number {
+		return content
+			.split("\n")
+			.findIndex((line) => line.trimEnd() === this.completedAreaHeader);
 	}
 
 	private toggleElement(
