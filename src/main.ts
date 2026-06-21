@@ -1,6 +1,6 @@
 import CompletedAreaSettingTab from "./CompletedAreaSettingTab";
 import CompletedAreaSetting from "./CompletedAreaSetting";
-import { Plugin, Notice, addIcon } from "obsidian";
+import { Plugin, Notice, addIcon, MarkdownView, Editor, EditorPosition } from "obsidian";
 
 addIcon(
 	"completed-area",
@@ -48,40 +48,39 @@ export default class CompletedAreaPlugin extends Plugin {
 	}
 
 	editSource() {
-		const activeLeaf = this.app.workspace.activeLeaf ?? null;
-		if (activeLeaf) {
-			const source = activeLeaf.view.sourceMode;
-			const sourceText = source.get();
+		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (!view) {
+			new Notice("Please open a markdown file first.");
+			return;
+		}
 
-			const todoRegx = /-\s\[[\sx]\]\s/gi;
-			const toggledText = this.toggleElement(todoRegx, this.replaceTodo);
-			const completedItems = this.extractCompletedItems(toggledText) ?? null;
-			if (completedItems) {
-				const newText = this.refactorContent(toggledText, completedItems);
-				source.set(newText, false);
-			}
-		} else {
-			new Notice("Please active a leaf first.");
+		const editor = view.editor;
+		const todoRegx = /-\s\[[\sx]\]\s/gi;
+		const toggledText = this.toggleElement(editor, todoRegx, this.replaceTodo);
+		const completedItems = this.extractCompletedItems(toggledText);
+		if (completedItems) {
+			const newText = this.refactorContent(toggledText, completedItems);
+			editor.setValue(newText);
 		}
 	}
 
-	replaceTodo(startWith: string) {
+	replaceTodo(startWith: string): string {
 		return startWith === "- [ ] " ? "- [x] " : "- [ ] ";
 	}
 
-	extractCompletedItems(text: string): Array<string> | void {
-		let completedItems: Array<string> = [];
-
-		if (text) {
-			completedItems = text.match(this.completedItemRegx);
-
-			if (!completedItems) {
-				new Notice("No completed todos found.");
-				return;
-			}
-
-			return completedItems;
+	extractCompletedItems(text: string): Array<string> | null {
+		if (!text) {
+			return null;
 		}
+
+		const completedItems = text.match(this.completedItemRegx);
+
+		if (!completedItems) {
+			new Notice("No completed todos found.");
+			return null;
+		}
+
+		return completedItems;
 	}
 
 	refactorContent(content: string, items: Array<string>): string {
@@ -98,15 +97,12 @@ export default class CompletedAreaPlugin extends Plugin {
 	}
 
 	formatItems(items: Array<string>, content: string): string {
-		let completedArea = "";
 		const header = this.makeCompletedHeader(content);
 		items[0] = (items[0][0] === "\n" ? "" : "\n") + items[0];
 
-		completedArea = items.reduce((prev, current) => {
+		return items.reduce((prev, current) => {
 			return prev + current;
 		}, header);
-
-		return completedArea;
 	}
 
 	makeCompletedHeader(content: string): string {
@@ -124,13 +120,11 @@ export default class CompletedAreaPlugin extends Plugin {
 		return !!content.match(RegExp(this.completedAreaHeader));
 	}
 
-	toggleElement(re: RegExp, subst: any): string {
-		var activeLeaf: any = this.app.workspace.activeLeaf;
-		var editor = activeLeaf.view.sourceMode.cmEditor;
-		var selection = editor.somethingSelected();
-		var selectedText = this.getSelectedText(editor);
+	toggleElement(editor: Editor, re: RegExp, subst: (match: string) => string): string {
+		const selection = editor.somethingSelected();
+		const selectedText = this.getSelectedText(editor);
 
-		var newString = selectedText.content.replace(re, subst);
+		const newString = selectedText.content.replace(re, subst);
 		editor.replaceRange(newString, selectedText.start, selectedText.end);
 
 		// Keep cursor in the same place
@@ -141,15 +135,15 @@ export default class CompletedAreaPlugin extends Plugin {
 			});
 		}
 
-		return activeLeaf.view.sourceMode.get();
+		return editor.getValue();
 	}
 
-	getSelectedText(editor: any) {
+	getSelectedText(editor: Editor): { start: EditorPosition; end: EditorPosition; content: string } {
 		if (editor.somethingSelected()) {
 			// Toggle to-dos under the selection
-			let cursorStart = editor.getCursor(true);
-			let cursorEnd = editor.getCursor(false);
-			let content = editor.getRange(
+			const cursorStart = editor.getCursor("from");
+			const cursorEnd = editor.getCursor("to");
+			const content = editor.getRange(
 				{ line: cursorStart.line, ch: 0 },
 				{ line: cursorEnd.line, ch: editor.getLine(cursorEnd.line).length }
 			);
@@ -164,17 +158,18 @@ export default class CompletedAreaPlugin extends Plugin {
 			};
 		} else {
 			// Toggle the todo in the line
-			var lineNr = editor.getCursor().line;
-			var contents = editor.getDoc().getLine(lineNr);
-			let cursorStart = {
+			const cursor = editor.getCursor();
+			const lineNr = cursor.line;
+			const contents = editor.getLine(lineNr);
+			const cursorStart = {
 				line: lineNr,
 				ch: 0,
 			};
-			let cursorEnd = {
+			const cursorEnd = {
 				line: lineNr,
 				ch: contents.length,
 			};
-			let content = editor.getRange(cursorStart, cursorEnd);
+			const content = editor.getRange(cursorStart, cursorEnd);
 			return { start: cursorStart, end: cursorEnd, content: content };
 		}
 	}
