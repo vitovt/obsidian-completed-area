@@ -1,9 +1,9 @@
 {
   "id": "completed-area",
   "name": "Completed Area",
-  "version": "0.2.0",
-  "description": "Move completed to-do items to a seperate completed area.",
+  "version": "0.2.1",
+  "minAppVersion": "1.0.0",
+  "description": "Move completed to-do items to a separate completed area.",
   "author": "Daha",
-  "js": "main.js",
   "isDesktopOnly": false
 }
